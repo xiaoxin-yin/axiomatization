@@ -4,6 +4,7 @@ from collections import OrderedDict, defaultdict
 class Premise:
     
     def __init__(self, theorem_text=None):
+        self.full_paht = None
         self.theorem_text = theorem_text
         self.theorem_name = ""
         self.hypotheses = OrderedDict()
@@ -41,7 +42,8 @@ class Premise:
         for line in lines:
             # Check if the line defines variables
             if ':' in line:
-                var_def = line.split(':')
+                idx = line.index(':')
+                var_def = (line[0:idx], line[idx+1:])
                 vars = var_def[0].strip().split()
                 type = var_def[1].strip()
                 for var in vars:
@@ -412,60 +414,64 @@ def split_equation(target):
 
 
 
+def main() -> int:
+    # Test cases for Premise class
+    test_cases = [
+        "theorem test_theorem_1 (a b: ℝ ) (h : c = b * a - d): a * b + a * b = 2 * a * b := by ring ",
+        "lemma not_monotone_iff {f : ℝ → ℝ} : ¬Monotone f ↔ ∃ x y, x ≤ y ∧ f x > f y := by rw [Monotone]\n push_neg\n rfl",
+        """theorem subgroup_closure {G : Type*} [Group G] (H H' : Subgroup G) : ((H ⊔ H' : Subgroup G) : Set G) = Subgroup.closure ((H : Set G) ∪ (H' : Set G)) := by
+      rw [Subgroup.sup_eq_closure]
+      rfl"""
+    ]
 
-# Test cases for Premise class
-test_cases = [
-    "theorem test_theorem_1 (a b: ℝ ) (h : c = b * a - d): a * b + a * b = 2 * a * b := by ring ",
-    "lemma not_monotone_iff {f : ℝ → ℝ} : ¬Monotone f ↔ ∃ x y, x ≤ y ∧ f x > f y := by rw [Monotone]\n push_neg\n rfl",
-    """theorem subgroup_closure {G : Type*} [Group G] (H H' : Subgroup G) : ((H ⊔ H' : Subgroup G) : Set G) = Subgroup.closure ((H : Set G) ∪ (H' : Set G)) := by
-  rw [Subgroup.sup_eq_closure]
-  rfl"""
-]
+    for i, case in enumerate(test_cases, 1):
+        print(f"Case {i}:")
+        premise = Premise(case)
+        print(premise)
+        print(premise.to_theorem_code(include_tactics=True))
+        print()
 
-for i, case in enumerate(test_cases, 1):
-    print(f"Case {i}:")
-    premise = Premise(case)
-    print(premise)
-    print(premise.to_theorem_code(include_tactics=True))
-    print()
-
-print("Case parse_state")
-premise = Premise()
-premise.parse_state("""a b c d : ℝ
-h : a = c + d
-⊢ b + c - (b + c) = 0""")
-print(premise.to_theorem_code())
-
-
-# Test cases for TargetNode
-targets = [
-    "∀ x y, x = y → f x = f y",
-    "∃ x, (f x = g x) => Prime x",
-    "u ×₃ (v ×₃ w) + v ×₃ (w ×₃ u) + w ×₃ (u ×₃ v) = 0",
-    "s \ t ∪ t \ s = (s ∪ t) \ (s ∩ t)",
-    "(⋃ p ∈ primes, { x | p ^ 2 ∣ x }) = { x | ∃ p ∈ primes, p ^ 2 ∣ x } ",
-    "c * (a * b + a * b) = c * (2 * a * b)"
-]
-
-for target in targets:
-    print(target)
-    tokens = tokenize(target)
-    print(tokens)
-    root = TargetNode.build_tree(tokens)
-    root.print_tree()
-    print()
+    print("Case parse_state")
+    premise = Premise()
+    premise.parse_state("""a b c d : ℝ
+    h : a = c + d
+    ⊢ b + c - (b + c) = 0""")
+    print(premise.to_theorem_code())
 
 
-expected_split_equation = [
-    None,
-    None,
-    ('u ×₃ ( v ×₃ w ) + v ×₃ ( w ×₃ u ) + w ×₃ ( u ×₃ v )', '=', '0'),
-    ('s \\ t ∪ t \\ s', '=', '( s ∪ t ) \\ ( s ∩ t )'),
-    ('⋃ p ∈ primes , { x | p ^ 2 ∣ x }', '=', 'x | ∃ p ∈ primes , p ^ 2 ∣ x'),
-    ('c * ( a * b + a * b )', '=', 'c * ( 2 * a * b )')
-]
+    # Test cases for TargetNode
+    targets = [
+        "∀ x y, x = y → f x = f y",
+        "∃ x, (f x = g x) => Prime x",
+        "u ×₃ (v ×₃ w) + v ×₃ (w ×₃ u) + w ×₃ (u ×₃ v) = 0",
+        "s \ t ∪ t \ s = (s ∪ t) \ (s ∩ t)",
+        "(⋃ p ∈ primes, { x | p ^ 2 ∣ x }) = { x | ∃ p ∈ primes, p ^ 2 ∣ x } ",
+        "c * (a * b + a * b) = c * (2 * a * b)"
+    ]
 
-print("Testing split_equation")
-for i in range(len(targets)):
-    assert split_equation(targets[i]) == expected_split_equation[i]
-print("Done")
+    for target in targets:
+        print(target)
+        tokens = tokenize(target)
+        print(tokens)
+        root = TargetNode.build_tree(tokens)
+        root.print_tree()
+        print()
+
+    expected_split_equation = [
+        None,
+        None,
+        ('u ×₃ ( v ×₃ w ) + v ×₃ ( w ×₃ u ) + w ×₃ ( u ×₃ v )', '=', '0'),
+        ('s \\ t ∪ t \\ s', '=', '( s ∪ t ) \\ ( s ∩ t )'),
+        ('⋃ p ∈ primes , { x | p ^ 2 ∣ x }', '=', 'x | ∃ p ∈ primes , p ^ 2 ∣ x'),
+        ('c * ( a * b + a * b )', '=', 'c * ( 2 * a * b )')
+    ]
+
+    print("Testing split_equation")
+    for i in range(len(targets)):
+        assert split_equation(targets[i]) == expected_split_equation[i]
+    print("Done")
+    
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
