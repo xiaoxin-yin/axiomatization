@@ -41,11 +41,12 @@ from lean_dojo.interaction.dojo import (
 
 
 MAX_MEMORY_USAGE = 16*1024*1024*1024
-MAX_STEPS = 50000
-MAX_TACTIC_FROM_TEMPLATE = 50
+MAX_STEPS = 1000
+MAX_TACTIC_FROM_TEMPLATE = 10
 PENALTY_SEEN_TARGET_MULTIPLIER = 3
-MAX_NUM_DOJO_ATTEMPT = 2
+MAX_NUM_DOJO_ATTEMPT = 1
 MAX_NUM_OUTPUT_PER_STATE = 50
+STATE_PRIORITY_RANDOMNESS=10
 
 class TripletDataset(Dataset):
     def __init__(self, triplets, tokenizer):
@@ -194,7 +195,7 @@ def explore_states(dojo,
 
     curr_state = state_0
     base_complexity = 0
-    state_queue.push(curr_state, explore_state_complexity(curr_state, base_complexity=base_complexity) + randint(0, 4))
+    state_queue.push(curr_state, explore_state_complexity(curr_state, base_complexity=base_complexity) + randint(0, STATE_PRIORITY_RANDOMNESS))
     base_complexity += 1
     state_dict[curr_state.pp] = (curr_state, list(), list())
     
@@ -212,6 +213,9 @@ def explore_states(dojo,
                 print("Sucessfully followed proof")
                 break
             else:
+                complexity = explore_state_complexity(test_state, base_complexity=base_complexity) + randint(0, STATE_PRIORITY_RANDOMNESS)
+                base_complexity += 1
+                state_queue.push(curr_state, complexity)
                 state_dict[test_state.pp] = (test_state, [curr_state], [tactic])
                 curr_state = test_state
     
@@ -237,7 +241,7 @@ def explore_states(dojo,
         #
         tactic_set = set()
         query = theorem_code + ' # ' + curr_state.pp
-        suggestions = get_similar_tacs(query, model_state, tokenizer, rag_index, all_tacs, num_returned=200)
+        suggestions = get_similar_tacs(query, model_state, tokenizer, rag_index, all_tacs, num_returned=20)
         tac_templates = [x[0] for x in suggestions]
         #
         # Add inverse tactics of any 'rw' tactics in the set
@@ -300,7 +304,7 @@ def explore_states(dojo,
                 else:
                     complexity = explore_state_complexity(test_state, base_complexity=base_complexity)
                     base_complexity += 1
-                    state_queue.push(test_state, complexity  + randint(0, 4))
+                    state_queue.push(test_state, complexity  + randint(0, STATE_PRIORITY_RANDOMNESS))
                     state_dict[test_state.pp] = (test_state, [curr_state], [tactic])
         #
         if proof_finished:
@@ -360,7 +364,7 @@ def get_state_provability_data(dojo,
                                all_tacs,
                                theorem_code=None, 
                                proof_tactics=None,
-                               max_steps=100000, 
+                               max_steps=MAX_STEPS, 
                                negative_ratio=1.0,
                                verbose=False):
     MAX_PROVEN_STATES = 1000
@@ -580,7 +584,7 @@ def compute_provability_training_data_remote(file_path, output_path, previous_ou
             #if dojo is None:
             try:
                 print("Worker", worker_id, "trying to get into critical section", datetime.now().time())
-                with SystemSemaphore('dojolock1', 1):
+                with SystemSemaphore('dojolock5', 1):
                     print("Worker", worker_id, f'Process {os.getpid()} has exclusive access to the critical section!')
                     try:
                         print("Start entering", theorem)
@@ -618,7 +622,7 @@ def compute_provability_training_data_remote(file_path, output_path, previous_ou
                                            tacs,
                                            theorem_code=theorem_code,
                                            proof_tactics=tactics,
-                                           max_steps=50000,
+                                           max_steps=MAX_STEPS,
                                            verbose=True)
             print(f"{len(state_pairs)} state pairs found in {full_name}, {file_path}")
             if len(state_pairs) == 0:
